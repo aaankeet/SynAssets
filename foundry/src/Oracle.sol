@@ -32,11 +32,14 @@ contract Oracle is Ownable {
         }
     }
 
-    function setOracle(address oracleAddress) external onlyOwner {
-        priceFeeds[oracleAddress] = AggregatorV3Interface(oracleAddress);
+    function setOracle(
+        address synthAddress,
+        address oracleAdress
+    ) external onlyOwner {
+        priceFeeds[synthAddress] = AggregatorV3Interface(oracleAdress);
     }
 
-    function change_sUSDAddress(address sUsd) external onlyOwner {
+    function change_sUsdAddress(address sUsd) external onlyOwner {
         if (sUSD == address(0)) revert InvalidAddress();
         sUSD = sUsd;
     }

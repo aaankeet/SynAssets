@@ -7,17 +7,12 @@ import "./Interfaces/IOracle.sol";
 
 import {Ownable} from "@oz/access/Ownable.sol";
 
-contract SynthBase is Ownable {
+contract SynthBase is ISynthBase, Ownable {
     address public synthetixAddress;
     address public treasury;
+    address public sUSD;
+    uint8 public SWAP_FEE = 100; // 0.01%
     IOracle public oracle;
-    uint256 public SWAP_FEE = 100; // 0.01%
-
-    struct Commodity {
-        uint16 id;
-        uint256 totalShorts;
-        bool shortsEnabled;
-    }
 
     address[] commodityList;
     mapping(address => Commodity) public commodities;
@@ -31,10 +26,28 @@ contract SynthBase is Ownable {
      * @param synthAddress address of synth Token
      * @notice only Onwer can add synths
      */
+
     function addSynth(address synthAddress) external onlyOwner {
         if (synthAddress == address(0)) revert InvalidAddress();
         commodities[synthAddress].id = uint16(commodityList.length + 1);
         commodityList.push(synthAddress);
+        emit SynthAdded(msg.sender, synthAddress);
+    }
+
+    function removeSynth(address synthAddress) external onlyOwner {
+        if (commodities[synthAddress].id == 0) revert SynthDoesntExist();
+        uint synthIndex = commodities[synthAddress].id;
+        uint length = commodityList.length - 1;
+
+        // Move the last element to the position being deleted
+        commodityList[synthIndex - 1] = commodityList[length];
+        // Update the ID of the moved element
+        commodities[commodityList[synthIndex]].id = uint16(synthIndex);
+        // Remove the last element from the list
+        commodityList.pop();
+        // Delete the synth from the mapping
+        delete commodities[synthAddress];
+        emit SynthRemoved(msg.sender, synthAddress);
     }
 
     /**
@@ -65,18 +78,18 @@ contract SynthBase is Ownable {
     /**
      * @param synth0 - synth user wants to trade
      * @param synth1 - synth user wants to trade for
-     * @param to - address of user who will receive synth1
      * @param amount - amount of synth user wants to trade
+     * @notice - charges fee for swaps
      */
-    function swapTo(
+    function swapSynth(
         address synth0,
         address synth1,
-        address to,
         uint amount
     ) external onlySynthetix {
-        if (commodities[synth0].id == 0 && commodities[synth1].id == 0)
-            revert InvalidAddress();
-        if (to == address(0)) revert InvalidAddress();
+        if (commodities[synth0].id == 0 || synth1 == sUSD)
+            revert SynthDoesntExist();
+        if (commodities[synth1].id == 0 || synth0 == sUSD)
+            revert SynthDoesntExist();
         if (amount == 0) revert AmountMustBeAboveZero();
 
         (uint256 synth0Price, uint8 synth0Decimals) = oracle.getPrice(synth0);
@@ -88,7 +101,45 @@ contract SynthBase is Ownable {
         uint256 fee = (amountReceive * SWAP_FEE) / SWAP_FEE;
 
         ISynth(synth0).burn(msg.sender, amount);
-        ISynth(synth1).mint(to, amount - fee);
+        ISynth(synth1).mint(msg.sender, amount - fee);
+        ISynth(synth1).mint(treasury, fee);
+    }
+
+    function increaseShorts(
+        address synthAddress,
+        uint256 amount
+    ) external onlyOwner {
+        if (commodities[synthAddress].id == 0) revert SynthDoesntExist();
+        if (amount == 0) revert AmountMustBeAboveZero();
+        commodities[synthAddress].totalShorts += amount;
+        emit ShortsIncreased(synthAddress, amount);
+    }
+
+    function decreaseShorts(address synthAddress, uint256 amount) external {
+        if (commodities[synthAddress].id == 0) revert SynthDoesntExist();
+        if (amount == 0) revert AmountMustBeAboveZero();
+        commodities[synthAddress].totalShorts -= amount;
+        emit ShortsDecreased(msg.sender, amount);
+    }
+
+    function toggleShorts(address synthAddress, bool value) external onlyOwner {
+        if (commodities[synthAddress].id == 0) revert SynthDoesntExist();
+        if (value == true) {
+            require(
+                commodities[synthAddress].shortsEnabled == false,
+                "Shorts Already Enabled"
+            );
+            commodities[synthAddress].shortsEnabled = value;
+            emit ShortsEnabled(msg.sender, synthAddress, value);
+        }
+        if (value == false) {
+            require(
+                commodities[synthAddress].shortsEnabled == true,
+                "Shorts Already Disable"
+            );
+            commodities[synthAddress].shortsEnabled = value;
+            emit ShortsDisabled(msg.sender, synthAddress, value);
+        }
     }
 
     //////////////// /////
