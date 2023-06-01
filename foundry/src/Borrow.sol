@@ -60,5 +60,46 @@ contract Borrow is IBorrow, Ownable {
     }
 
     // Return Borrowed Assets
-    function increaseCollateral(bytes32 _id, uint amount) external {}
+    function increaseCollateral(bytes32 borrowId, uint256 amount) external {
+        BorrowDetails storage currentId = idToBorrowDetails[borrowId];
+        if (currentId.user == address(0)) revert QueryForNonExistingBorrowing();
+        if (currentId.user != msg.sender) revert NotOwner();
+
+        currentId.collateralAmount += amount;
+
+        sUSD.transferFrom(msg.sender, address(this), amount);
+
+        emit CollateralIncreased(
+            msg.sender,
+            currentId.synthAddress,
+            currentId.collateralAmount
+        );
+    }
+
+    function getCollateralRatio(
+        bytes32 borrowId
+    ) public view returns (uint256 collateralRatio) {
+        BorrowDetails storage currentId = idToBorrowDetails[borrowId];
+        if (currentId.user == address(0)) revert QueryForNonExistingBorrowing();
+
+        (uint256 sUsdPrice, uint8 sUsdDecimals) = oracle.getPrice(
+            address(sUSD)
+        );
+        (uint256 synthPrice, uint8 synthDecimals) = oracle.getPrice(
+            address(currentId.synthAddress)
+        );
+
+        uint256 borrowed = currentId.borrowedAmount;
+        uint256 collateral = currentId.collateralAmount;
+
+        if (synthPrice * borrowed != 0) {
+            collateralRatio =
+                uint32(sUsdPrice * collateral * 10 ** (8 + sUsdDecimals)) /
+                (synthPrice * borrowed * 10 ** synthDecimals);
+        } else if (borrowed == 0) {
+            collateralRatio = 0;
+        } else {
+            collateralRatio = type(uint32).max;
+        }
+    }
 }
