@@ -25,9 +25,32 @@ contract Borrow is IBorrow, Ownable {
     mapping(address => bytes32[]) public userBorrowings;
     mapping(address => uint32) public totalBorrowings;
 
-    mapping(address => mapping(address => uint)) assetBorrowed;
+    constructor(
+        address _synthBase,
+        address _sUsd,
+        address _oracle,
+        address _treasury,
+        uint32 _minCollateralRatio,
+        uint32 _liquidationCollateralRatio,
+        uint32 _liquidationPenalty,
+        uint32 _treasuryFee
+    ) {
+        synthBase = ISynthBase(_synthBase);
+        sUSD = ISynth(_sUsd);
+        oracle = IOracle(_oracle);
+        treasury = ITreasury(_treasury);
+        minCollateralRatio = _minCollateralRatio;
+        liquidationCollateralRatio = _liquidationCollateralRatio;
+        liquidationPenalty = _liquidationPenalty;
+        treasuryFee = _treasuryFee;
+    }
 
-    // Borrow synths
+    /**
+     * @param synthAddress - address of synth  to Borrow
+     * @param borrowAmount - amount of synth to Borrow
+     * @param collateralAmount - amount to provide as collateral
+     */
+
     function borrow(
         address synthAddress,
         uint256 borrowAmount,
@@ -36,6 +59,7 @@ contract Borrow is IBorrow, Ownable {
         if (synthAddress == address(0)) revert InvalidAddress();
         if (borrowAmount == 0) revert AmountMustBeAboveZero();
 
+        // @dev - create a unique borrow id
         bytes32 borrowId = keccak256(
             abi.encode(
                 msg.sender,
@@ -44,7 +68,9 @@ contract Borrow is IBorrow, Ownable {
                 userBorrowings[msg.sender].length
             )
         );
+
         userBorrowings[msg.sender].push(borrowId);
+
         idToBorrowDetails[borrowId] = BorrowDetails({
             user: msg.sender,
             synthAddress: synthAddress,
@@ -57,6 +83,24 @@ contract Borrow is IBorrow, Ownable {
             treasuryFee: treasuryFee,
             borrowIndex: totalBorrowings[msg.sender]++
         });
+
+        uint collaterlRatio = getCollateralRatio(borrowId);
+
+        require(
+            collaterlRatio >= minCollateralRatio,
+            "Collateral Ratio Less than minimum collateral ratio"
+        );
+
+        sUSD.transferFrom(msg.sender, address(this), collateralAmount);
+        synthBase.increaseShorts(synthAddress, borrowAmount);
+        synthBase.mintSynth(synthAddress, msg.sender, borrowAmount);
+
+        emit AssetBorrowed(
+            borrowId,
+            synthAddress,
+            borrowAmount,
+            collateralAmount
+        );
     }
 
     // Return Borrowed Assets
@@ -76,6 +120,14 @@ contract Borrow is IBorrow, Ownable {
         );
     }
 
+    ////////////////////////
+    ///  VIEW FUNCTIONS  ///
+    ////////////////////////
+    /**
+     *
+     * @param borrowId - bororw Id must exist
+     * @notice - returns collateral ratio
+     */
     function getCollateralRatio(
         bytes32 borrowId
     ) public view returns (uint256 collateralRatio) {
@@ -101,5 +153,25 @@ contract Borrow is IBorrow, Ownable {
         } else {
             collateralRatio = type(uint32).max;
         }
+    }
+
+    /////////////////////////////
+    ///  EMERGENCY FUNCTIONS  ///
+    /////////////////////////////
+
+    function changeSynthBaseAddress(address _newAddress) external onlyOwner {
+        synthBase = ISynthBase(_newAddress);
+    }
+
+    function changesUsdAddress(address _newAddress) external onlyOwner {
+        synthBase = ISynthBase(_newAddress);
+    }
+
+    function changeOracleAddress(address _newAddress) external onlyOwner {
+        synthBase = ISynthBase(_newAddress);
+    }
+
+    function changeTreasuryAddress(address _newAddress) external onlyOwner {
+        synthBase = ISynthBase(_newAddress);
     }
 }

@@ -19,6 +19,7 @@ interface IBorrow {
         uint32 borrowIndex;
     }
     event AssetBorrowed(
+        bytes32 indexed borrowId,
         address indexed synthAddress,
         uint256 borrowAmount,
         uint256 collateralAmount
