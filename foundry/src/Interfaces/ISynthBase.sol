@@ -5,6 +5,7 @@ error AmountMustBeAboveZero();
 error UnAuthorized();
 error InvalidAddress();
 error SynthDoesntExist();
+error ShortsAreDisabled();
 
 interface ISynthBase {
     event SynthAdded(address indexed operator, address indexed synthAddress);
@@ -13,6 +14,7 @@ interface ISynthBase {
     event ShortsDisabled(address operator, address synthAddress, bool value);
     event ShortsIncreased(address indexed synthAddress, uint256 amount);
     event ShortsDecreased(address indexed synthAddress, uint256 amount);
+
     event SynthSwaped(
         address indexed operator,
         address indexed synth0,
@@ -50,7 +52,7 @@ interface ISynthBase {
 
     function getAssetList() external view returns (address[] memory);
 
-    function getCommodities(
+    function getCommodity(
         address synthAddress
     ) external view returns (Commodity memory);
 }

@@ -13,11 +13,15 @@ import {Ownable} from "@oz/access/Ownable.sol";
 contract Synth is ERC20, Ownable {
     // SynthBase Contract, manages minting and burning of synths
     address public synthBase;
+    uint256 public maxSupply;
 
     constructor(
         string memory name_,
-        string memory symbol_
-    ) ERC20(name_, symbol_) {}
+        string memory symbol_,
+        uint256 maxSupply_
+    ) ERC20(name_, symbol_) {
+        maxSupply = maxSupply_;
+    }
 
     modifier onlySynthBase() {
         if (msg.sender != synthBase) revert UnAuthorized();

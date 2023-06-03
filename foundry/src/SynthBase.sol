@@ -156,7 +156,7 @@ contract SynthBase is ISynthBase, Ownable {
      * @notice - get details of a Commodity
      * @param synthAddress - address of the valid Commodity
      */
-    function getCommodities(
+    function getCommodity(
         address synthAddress
     ) external view returns (Commodity memory) {
         if (commodities[synthAddress].id == 0) revert InvalidAddress();

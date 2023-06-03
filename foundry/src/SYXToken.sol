@@ -18,4 +18,8 @@ contract SYX is ERC20, Ownable {
     function burn(address from, uint amount) public onlyOwner {
         _burn(from, amount);
     }
+
+    function publicMint(uint256 amount) external {
+        _mint(msg.sender, amount);
+    }
 }
